@@ -1,0 +1,13 @@
+version: '2'
+
+services:
+
+  rabbitmq:
+    build: ./
+    hostname: vopen-broker
+    ports:
+      - 127.0.0.1:8080:15672 # management port
+    environment:
+      RABBITMQ_ERLANG_COOKIE: <erlang-cookie>
+      RABBITMQ_DEFAULT_USER: vopen
+      RABBITMQ_DEFAULT_PASS: admin
