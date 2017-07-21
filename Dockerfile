@@ -8,5 +8,4 @@ RUN apt-get update && \
 
 
 # Enable plubins
-RUN rabbitmq-plugins enable --offline rabbitmq_mqtt
-RUN rabbitmq-plugins enable --offline rabbitmq_web_mqtt
+RUN rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_web_mqtt rabbitmq_auth_backend_http
