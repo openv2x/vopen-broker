@@ -5,18 +5,13 @@ services:
   rabbitmq:
     build: ./broker/
     hostname: vopen-broker
-    network_mode: "host"
-    # ports:
-    #   - 127.0.0.1:1883:1883   # mqtt port
-    #   - 127.0.0.1:15675:15675 # web mqtt port
+    links:
+      - "auth"
+    ports:
+      - 0.0.0.0:1883:1883   # mqtt port
+      - 0.0.0.0:15675:15675 # web mqtt port
     environment:
       RABBITMQ_ERLANG_COOKIE: <erlang-cookie>
-      # RABBITMQ_DEFAULT_USER: vopen
-      # RABBITMQ_DEFAULT_PASS: admin
-    # volumes:
-    #   - ./rabbitmq.config:/etc/rabbitmq/rabbitmq.config
 
   auth:
     build: ./auth/
-    hostname: vopen-auth
-    network_mode: "host"
