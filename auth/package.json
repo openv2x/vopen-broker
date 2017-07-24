@@ -1,0 +1,16 @@
+{
+  "name": "auth",
+  "version": "1.0.0",
+  "description": "VOpen Broker authentication server",
+  "author": "Petar Vorotnikov",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "body-parser": "~1.17.1",
+    "debug": "~2.6.3",
+    "express": "~4.15.2",
+    "morgan": "~1.8.1"
+  }
+}
