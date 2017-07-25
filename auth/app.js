@@ -6,6 +6,34 @@ const express = require('express');
 const path = require('path');
 const logger = require('morgan');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+mongoose.Promise = require('bluebird');
+
+/* ================================
+ * Database
+ * ================================
+ */
+let db;
+
+// set up connection
+mongoose.connect('mongodb://127.0.0.1/vopen_users', { useMongoClient: true })
+.then((instance) => {
+    console.info('Connected to DB. Creating HTTP server...');
+    db = instance;
+    setupServer();
+})
+.catch((err) => {
+    console.error('MongoDB connection error:', err.message);
+});
+
+// create schema
+const userSchema = mongoose.Schema({
+    key: String,
+    secret: String
+});
+
+// create models
+const User = mongoose.model('User', userSchema);
 
 /* ================================
  * Create app
@@ -69,33 +97,37 @@ app.use(function(err, req, res, next) {
  * Create HTTP server
  * ================================
  */
-const server = http.createServer(app);
-server.on('error', (error) => {
-    if (error.syscall !== 'listen') {
-        throw error;
-    }
+function setupServer() {
+    const server = http.createServer(app);
 
-    // handle specific listen errors with friendly messages
-    switch (error.code) {
-        case 'EACCES':
-            console.error('Pipe requires elevated privileges');
-            process.exit(1);
-            break;
-        case 'EADDRINUSE':
-            console.error('Port is already in use');
-            process.exit(1);
-            break;
-        default:
+    server.on('error', (error) => {
+        if (error.syscall !== 'listen') {
             throw error;
-    }
-});
+        }
 
-server.on('listening', () => {
-    let addr = server.address();
-    let bind = typeof addr === 'string'
-        ? 'pipe ' + addr
-        : 'port ' + addr.port;
-    debug('Listening on ' + bind);
-});
+        // handle specific listen errors with friendly messages
+        switch (error.code) {
+            case 'EACCES':
+                console.error('Pipe requires elevated privileges');
+                process.exit(1);
+                break;
+            case 'EADDRINUSE':
+                console.error('Port is already in use');
+                process.exit(1);
+                break;
+            default:
+                throw error;
+        }
+    });
 
-server.listen(3000);
+    server.on('listening', () => {
+        let addr = server.address();
+        let bind = typeof addr === 'string'
+            ? 'pipe ' + addr
+            : 'port ' + addr.port;
+        debug('Listening on ' + bind);
+    });
+
+    server.listen(3000);
+
+}
