@@ -1,39 +1,22 @@
 'use strict';
 
+const Promise = require('bluebird');
 const debug = require('debug')('auth:server');
 const http = require('http');
 const express = require('express');
 const path = require('path');
-const logger = require('morgan');
+const morgan = require('morgan');
 const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
-mongoose.Promise = require('bluebird');
+const DB = require('./db');
+const logger = require('./logger');
 
 /* ================================
  * Database
  * ================================
  */
-let db;
-
-// set up connection
-mongoose.connect('mongodb://127.0.0.1/vopen_users', { useMongoClient: true })
-.then((instance) => {
-    console.info('Connected to DB. Creating HTTP server...');
-    db = instance;
-    setupServer();
-})
-.catch((err) => {
-    console.error('MongoDB connection error:', err.message);
-});
-
-// create schema
-const userSchema = mongoose.Schema({
-    key: String,
-    secret: String
-});
-
-// create models
-const User = mongoose.model('User', userSchema);
+DB.connection()
+.then((instance) => setupServer())
+.catch((err) => {});
 
 /* ================================
  * Create app
@@ -41,14 +24,23 @@ const User = mongoose.model('User', userSchema);
  */
 const app = express();
 
-app.use(logger('dev'));
+app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 app.post('/auth/user', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let password = req.body.password;      // the password provided
-    res.send('allow');
+
+    authenticateUser(username, password)
+    .then((user) => {
+        logger.info(`User ${user.firstName} ${user.lastName} is connecting...`);
+        res.send('allow');
+    })
+    .catch((err) => {
+        logger.error(err.message);
+        res.send('deny');
+    });
 });
 
 app.post('/auth/vhost', (req, res, next) => {
@@ -64,7 +56,7 @@ app.post('/auth/resource', (req, res, next) => {
     let resource = req.body.resource;      // the type of resource (exchange, queue, topic)
     let name = req.body.name;              // the name of the resource
     let permission = req.body.permission;  // the access level to the resource (configure, write, read)
-    console.log(username, vhost, resource, name, permission)
+    // logger.info(username, vhost, resource, name, permission)
     res.send('allow');
 });
 
@@ -87,10 +79,30 @@ app.use(function(req, res, next) {
 
 // error handler
 app.use(function(err, req, res, next) {
-    console.error(err.message);
+    logger.error(err.message);
     res.status(err.status || 500);
     res.json({ status: 'error', errorMessage: err.message, data: {} });
 });
+
+
+/* ================================
+ * Authorization and authentication
+ * ================================
+ */
+function authenticateUser(key, secret) {
+    return new Promise((fulfill, reject) => {
+        DB.Credential.findOne({ key, secret })
+        .populate('user')
+        .exec()
+        .then((credentials) => {
+            if (!credentials) reject(new Error(`Invalid key or secret: ${key}`));
+            else fulfill(credentials.user);
+        })
+        .catch((err) => {
+            reject(err)
+        });
+    });
+}
 
 
 /* ================================
@@ -108,11 +120,11 @@ function setupServer() {
         // handle specific listen errors with friendly messages
         switch (error.code) {
             case 'EACCES':
-                console.error('Pipe requires elevated privileges');
+                logger.error('Pipe requires elevated privileges');
                 process.exit(1);
                 break;
             case 'EADDRINUSE':
-                console.error('Port is already in use');
+                logger.error('Port is already in use');
                 process.exit(1);
                 break;
             default:
@@ -125,7 +137,7 @@ function setupServer() {
         let bind = typeof addr === 'string'
             ? 'pipe ' + addr
             : 'port ' + addr.port;
-        debug('Listening on ' + bind);
+        logger.info(`HTTP server listening on ${bind}`);
     });
 
     server.listen(3000);

@@ -15,7 +15,7 @@ RUN cd /usr/app && npm install -g nodemon && npm install
 # ----------------------
 # add application files
 # ----------------------
-COPY ["./app.js", "/usr/app/"]
+COPY ["./app.js", "./db.js", "./logger.js", "/usr/app/"]
 
 # ----------------------
 # create entry point
