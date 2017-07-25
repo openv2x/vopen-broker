@@ -13,7 +13,8 @@ const ACCESS_LEVEL = {
     USER: 10,
     POWER_USER: 20,
     MANAGER: 30,
-    ADMIN: 40
+    ADMIN: 50,
+    SERVICE: 60
 };
 
 /* ================================
@@ -46,6 +47,14 @@ const tokenSchema = mongoose.Schema({
     updated: { type: Date, default: Date.now },
 });
 
+const topicSchema = mongoose.Schema({
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    name: String,
+    description: String,
+    created: { type: Date, default: Date.now },
+    updated: { type: Date, default: Date.now },
+});
+
 /* ================================
  * Models
  * ================================
@@ -53,6 +62,7 @@ const tokenSchema = mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Credential = mongoose.model('Credential', credentialSchema);
 const Token = mongoose.model('Token', tokenSchema);
+const Topic = mongoose.model('Topic', topicSchema);
 
 /* ================================
  * Database

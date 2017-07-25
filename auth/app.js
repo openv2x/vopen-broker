@@ -10,6 +10,15 @@ const bodyParser = require('body-parser');
 const DB = require('./db');
 const logger = require('./logger');
 
+
+/* ================================
+ * Constants
+ * ================================
+ */
+const PRIVATE_TOPIC_REGEX = /private\/[a-z0-9]{32}\/.+/g;
+const PUBLIC_TOPIC_REGEX = /public\/.+/g;
+
+
 /* ================================
  * Database
  * ================================
@@ -17,6 +26,7 @@ const logger = require('./logger');
 DB.connection()
 .then((instance) => setupServer())
 .catch((err) => {});
+
 
 /* ================================
  * Create app
@@ -56,8 +66,32 @@ app.post('/auth/resource', (req, res, next) => {
     let resource = req.body.resource;      // the type of resource (exchange, queue, topic)
     let name = req.body.name;              // the name of the resource
     let permission = req.body.permission;  // the access level to the resource (configure, write, read)
-    // logger.info(username, vhost, resource, name, permission)
-    res.send('allow');
+
+    if ('topic' === resource) {
+
+        switch (permission) {
+            case 'write':
+                authorizeTopicPublish(username, name)
+                .then(() => {
+                    res.send('allow');
+                })
+                .catch((err) => {
+                    logger.error(err.message);
+                    res.send('deny');
+                });
+                break;
+            case 'read':
+                res.send('deny');
+                break;
+            default:
+                res.send('deny');
+                break;
+        }
+    } else {
+        res.send('deny');
+    }
+    // logger.info(username, resource, name, permission)
+
 });
 
 app.post('/auth/topic', (req, res, next) => {
@@ -101,6 +135,17 @@ function authenticateUser(key, secret) {
         .catch((err) => {
             reject(err)
         });
+    });
+}
+
+function authorizeTopicPublish(key, topic) {
+    return new Promise((fulfill, reject) => {
+
+        // validate topic format
+        let privateRegEx = /private\/[a-z0-9]{32}\/.+/g
+        let publicRegEx = /private\/[a-z0-9]{32}\/.+/g
+
+        reject(new Error(`Publish on topic ${topic} rejected`));
     });
 }
 
