@@ -12,9 +12,9 @@ mongoose.Promise = require('bluebird');
 const ACCESS_LEVEL = {
     USER: 10,
     POWER_USER: 20,
-    MANAGER: 30,
+    VOPEN_SERVICE: 30,
+    MANAGER: 40,
     ADMIN: 50,
-    SERVICE: 60
 };
 
 /* ================================
@@ -25,6 +25,7 @@ const ACCESS_LEVEL = {
 const userSchema = mongoose.Schema({
     firstName: String,
     lastName: String,
+    accessLevel: { type: Number, default: ACCESS_LEVEL.USER },
     isDefault: { type: Boolean, default: false },
     created: { type: Date, default: Date.now },
     updated: { type: Date, default: Date.now },
@@ -34,7 +35,6 @@ const credentialSchema = mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     key: String,            // VOpen access key
     secret: String,         // VOpen access secret
-    accessLevel: { type: Number, default: ACCESS_LEVEL.USER },
     created: { type: Date, default: Date.now },
     updated: { type: Date, default: Date.now },
 });
@@ -90,7 +90,7 @@ function createDefaultUser() {
             .then((c) => {
                 logger.info(`Default user key: ${c.key}`);
                 logger.info(`Default user secret: ${c.secret}`);
-                logger.info(`Default user access level: ${c.accessLevel}`);
+                logger.info(`Default user access level: ${defaultUser.accessLevel}`);
             });
         } else {
             logger.info(`Default user present`);
@@ -98,7 +98,7 @@ function createDefaultUser() {
             .then((c) => {
                 logger.info(`Default user key: ${c.key}`);
                 logger.info(`Default user secret: ${c.secret}`);
-                logger.info(`Default user access level: ${c.accessLevel}`);
+                logger.info(`Default user access level: ${res.accessLevel}`);
             });
         }
     })

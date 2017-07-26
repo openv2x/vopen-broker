@@ -141,11 +141,31 @@ function authenticateUser(key, secret) {
 function authorizeTopicPublish(key, topic) {
     return new Promise((fulfill, reject) => {
 
-        // validate topic format
-        let privateRegEx = /private\/[a-z0-9]{32}\/.+/g
-        let publicRegEx = /private\/[a-z0-9]{32}\/.+/g
+        DB.Credential.findOne({ key })
+        .populate('user')
+        .exec()
+        .then((credentials) => {
 
-        reject(new Error(`Publish on topic ${topic} rejected`));
+            let accessLevel = credentials.user.accessLevel;
+
+            // validate topic format
+            if (PUBLIC_TOPIC_REGEX.test(topic)) {
+                reject(new Error(`Publish on public topic ${topic} rejected`));
+            } else if (PRIVATE_TOPIC_REGEX.test(topic)) {
+                if (accessLevel < DB.ACCESS_LEVEL.USER) {
+                    reject(new Error('Insufficient access level'));
+                } else {
+                    // TODO: check key
+                    fulfill();
+                }
+            } else {
+                reject(new Error(`Topic does not match required schema: ${topic}`));
+            }
+        })
+        .catch((err) => {
+            reject(err);
+        });
+
     });
 }
 
