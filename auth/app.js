@@ -15,7 +15,7 @@ const logger = require('./logger');
  * Constants
  * ================================
  */
-const PRIVATE_TOPIC_REGEX = /private\/[a-z0-9]{32}\/.+/g;
+const PRIVATE_TOPIC_REGEX = /private\/([a-z0-9]{32})\/.+/g;
 const PUBLIC_TOPIC_REGEX = /public\/.+/g;
 
 
@@ -34,17 +34,24 @@ DB.connection()
  */
 const app = express();
 
-app.use(morgan('dev'));
+app.use(morgan('combined', {
+  skip: (req, res) => { return res.statusCode < 400 }
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
+
+/* ================================
+ * App middleware
+ * ================================
+ */
 app.post('/auth/user', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let password = req.body.password;      // the password provided
 
     authenticateUser(username, password)
     .then((user) => {
-        logger.info(`User ${user.firstName} ${user.lastName} is connecting...`);
+        logger.info(`User ${user.firstName} ${user.lastName} connected...`);
         res.send('allow');
     })
     .catch((err) => {
@@ -146,20 +153,42 @@ function authorizeTopicPublish(key, topic) {
         .exec()
         .then((credentials) => {
 
+            // reset regex indeces
+            PRIVATE_TOPIC_REGEX.lastIndex = 0;
+            PUBLIC_TOPIC_REGEX.lastIndex = 0;
             let accessLevel = credentials.user.accessLevel;
 
-            // validate topic format
-            if (PUBLIC_TOPIC_REGEX.test(topic)) {
-                reject(new Error(`Publish on public topic ${topic} rejected`));
-            } else if (PRIVATE_TOPIC_REGEX.test(topic)) {
-                if (accessLevel < DB.ACCESS_LEVEL.USER) {
-                    reject(new Error('Insufficient access level'));
+            // public topic
+            if (!!topic.match(PUBLIC_TOPIC_REGEX)) {
+
+                let requiredAccessLevel = DB.ACCESS_LEVEL.VOPEN_SERVICE;
+
+                if (accessLevel < requiredAccessLevel) {
+                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}. Access level ${requiredAccessLevel} required`));
                 } else {
-                    // TODO: check key
                     fulfill();
                 }
+
+            // private topic
+            } else if (!!topic.match(PRIVATE_TOPIC_REGEX)) {
+
+                let requiredAccessLevel = DB.ACCESS_LEVEL.USER;
+
+                if (accessLevel < requiredAccessLevel) {
+                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}. Access level ${requiredAccessLevel} required`));
+                } else {
+
+                    // check key
+                    let key = PRIVATE_TOPIC_REGEX.exec(topic)[1];
+                    if (key === credentials.key) {
+                        fulfill();
+                    } else {
+                        reject(new Error("Publishing on another user's private topic is not allowed"));
+                    }
+                }
+
             } else {
-                reject(new Error(`Topic does not match required schema: ${topic}`));
+                reject(new Error(`Topic does not match a valid schema: ${topic}`));
             }
         })
         .catch((err) => {
