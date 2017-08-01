@@ -45,13 +45,15 @@ app.use(bodyParser.urlencoded({ extended: false }));
  * App middleware
  * ================================
  */
+
+// authenticate user
 app.post('/auth/user', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let password = req.body.password;      // the password provided
 
     authenticateUser(username, password)
     .then((user) => {
-        logger.info(`User ${user.firstName} ${user.lastName} connected...`);
+        logger.info(`User ${username} connected...`);
         res.send('allow');
     })
     .catch((err) => {
@@ -60,6 +62,7 @@ app.post('/auth/user', (req, res, next) => {
     });
 });
 
+// authenticate vhost
 app.post('/auth/vhost', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let vhost = req.body.vhost;            // the name of the virtual host being accessed
@@ -67,6 +70,7 @@ app.post('/auth/vhost', (req, res, next) => {
     res.send('allow');
 });
 
+// authorize resource action
 app.post('/auth/resource', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let vhost = req.body.vhost;            // the name of the virtual host containing the resource
@@ -74,8 +78,9 @@ app.post('/auth/resource', (req, res, next) => {
     let name = req.body.name;              // the name of the resource
     let permission = req.body.permission;  // the access level to the resource (configure, write, read)
 
-    if ('topic' === resource) {
+    logger.debug(permission, resource, name)
 
+    if ('topic' === resource) {
         switch (permission) {
             case 'write':
                 authorizeTopicPublish(username, name)
@@ -88,19 +93,27 @@ app.post('/auth/resource', (req, res, next) => {
                 });
                 break;
             case 'read':
-                res.send('deny');
+                authorizeTopicSubscribe(username, name)
+                .then(() => {
+                    logger.info(`User ${username} subscribed to topic ${name}`)
+                    res.send('allow');
+                })
+                .catch((err) => {
+                    logger.error(err.message);
+                    res.send('deny');
+                });
                 break;
             default:
                 res.send('deny');
                 break;
         }
     } else {
-        res.send('deny');
+        res.send('allow');
     }
-    // logger.info(username, resource, name, permission)
 
 });
 
+// authorize topic action
 app.post('/auth/topic', (req, res, next) => {
     let username = req.body.username;      // the name of the user
     let vhost = req.body.vhost;            // the name of the virtual host containing the resource
@@ -130,6 +143,13 @@ app.use(function(err, req, res, next) {
  * Authorization and authentication
  * ================================
  */
+
+/**
+ * Authenticate connecting user
+ * @param  {String} key
+ * @param  {String} secret
+ * @return {Promise}
+ */
 function authenticateUser(key, secret) {
     return new Promise((fulfill, reject) => {
         DB.Credential.findOne({ key, secret })
@@ -145,6 +165,12 @@ function authenticateUser(key, secret) {
     });
 }
 
+/**
+ * Authorize publish on a topic
+ * @param  {String} key
+ * @param  {String} topic
+ * @return {Promise}
+ */
 function authorizeTopicPublish(key, topic) {
     return new Promise((fulfill, reject) => {
 
@@ -164,7 +190,7 @@ function authorizeTopicPublish(key, topic) {
                 let requiredAccessLevel = DB.ACCESS_LEVEL.VOPEN_SERVICE;
 
                 if (accessLevel < requiredAccessLevel) {
-                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}. Access level ${requiredAccessLevel} required`));
+                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}.\nAccess level ${requiredAccessLevel} required`));
                 } else {
                     fulfill();
                 }
@@ -175,15 +201,15 @@ function authorizeTopicPublish(key, topic) {
                 let requiredAccessLevel = DB.ACCESS_LEVEL.USER;
 
                 if (accessLevel < requiredAccessLevel) {
-                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}. Access level ${requiredAccessLevel} required`));
+                    reject(new Error(`Insufficient access level ${accessLevel} to publish on topic ${topic}.\nAccess level ${requiredAccessLevel} required`));
                 } else {
 
                     // check key
-                    let key = PRIVATE_TOPIC_REGEX.exec(topic)[1];
-                    if (key === credentials.key) {
+                    let publisherKey = PRIVATE_TOPIC_REGEX.exec(topic)[1];
+                    if (publisherKey === credentials.key) {
                         fulfill();
                     } else {
-                        reject(new Error("Publishing on another user's private topic is not allowed"));
+                        reject(new Error(`Publishing on another user's private topic is not allowed.\nUser ${credentials.key} wants to publish on topic ${topic}`));
                     }
                 }
 
@@ -194,6 +220,51 @@ function authorizeTopicPublish(key, topic) {
         .catch((err) => {
             reject(err);
         });
+
+    });
+}
+
+/**
+ * Authorize subscription to a topic
+ * @param  {String} key
+ * @param  {String} topic
+ * @return {Promise}
+ */
+function authorizeTopicSubscribe(key, topic) {
+    return new Promise((fulfill, reject) => {
+
+        // reset regex indeces
+        PRIVATE_TOPIC_REGEX.lastIndex = 0;
+        PUBLIC_TOPIC_REGEX.lastIndex = 0;
+
+        // public topic (always allow)
+        if (!!topic.match(PUBLIC_TOPIC_REGEX)) {
+
+            fulfill();
+
+        // private topic (allow on self topics and shared topics)
+        } else if (!!topic.match(PRIVATE_TOPIC_REGEX)) {
+
+            DB.Credential.findOne({ key })
+            .populate('user')
+            .exec()
+            .then((credentials) => {
+
+                // check key
+                let publisherKey = PRIVATE_TOPIC_REGEX.exec(topic)[1];
+                if (publisherKey === credentials.key) {
+                    fulfill();
+                } else {
+                    // TODO: check sharing permissions
+                    reject(new Error(`Subscribing to another user's private topic is not allowed.\nUser ${credentials.key} wants to subscribe to topic ${topic}`));
+                }
+
+            })
+            .catch((err) => {
+                reject(err);
+            });
+
+        }
 
     });
 }
