@@ -82,8 +82,10 @@ function createDefaultUser() {
                 //  create user credentials
                 let credentials = new Credential({
                     user: u.id,
-                    key: uuidv4().replace(/-/gi, ''),
-                    secret: uuidv4().replace(/-/gi, '')
+                    // key: uuidv4().replace(/-/gi, ''),
+                    // secret: uuidv4().replace(/-/gi, ''),
+                    key: 'default',
+                    secret: 'user',
                 });
                 return credentials.save();
             })
